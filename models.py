@@ -10,9 +10,6 @@ class Member(db.Model):
 	telehandle = db.Column(db.String(32), unique = True, nullable = False)
 	modified_timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
-	# one-to-many model
-	# tasks = db.relationship('Task', back_populates = 'Task', uselist = True)
-
 	# one-to-one model
 	timetable = db.relationship('Timetable', back_populates = 'user', uselist = False)
 
@@ -146,18 +143,19 @@ class Meeting(db.Model):
 class Task(db.Model):
 	__tablename__ = 'Task'
 	id = db.Column(db.Integer, primary_key=True)
-	member = db.Column(db.Float, unique=True, nullable=False) #see if we can store/keep track of members after first initialization, --> in-line keyboard
+	#member = db.Column(db.Float, unique=True, nullable=False) #see if we can store/keep track of members after first initialization, --> in-line keyboard # thinkn no nned cause back populate to user table alr
 	header = db.Column(db.String(80), unique=True, nullable=False)
 	deadline = db.Column(db.String(80), unique=False, nullable=False) #try in-line text
 	desc = db.Column(db.String(1000), unique=False, nullable=False)
 	
 	# one-to-many model
 	task_member = db.relationship('Member', back_populates='member_task', uselist=True, cascade='all, delete-orphan', lazy=True)
+	
 	# one-to-many model
 	task_group = db.relationship('Group', back_populates='group_task', uselist=True, cascade='all, delete-orphan', lazy=True)
 	
-	def __init__(self, member, header, deadline, desc):
-		self.member = member
+	def __init__(self, header, deadline, desc):
+		#self.member = member
 		self.header = header
 		self.deadline = deadline
 		self.desc = desc
