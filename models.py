@@ -166,7 +166,7 @@ class Task(db.Model):
 	def serialize(self):
 		return {
 		    'id': self.id, 
-		    'member': self.member,
+		    #'member': self.member,
 		    'header': self.header,
 		    'deadline': self.deadline,
 		    'desc': self.desc, #key on the left can be anything, but the reference on the right has to be linked to the things on top
