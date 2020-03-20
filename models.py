@@ -10,12 +10,16 @@ class Member(db.Model):
 	telehandle = db.Column(db.String(32), unique = True, nullable = False)
 	modified_timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
-	#one-to-many model
+	# one-to-many model
 	# tasks = db.relationship('Task', back_populates = 'Task', uselist = True)
 
-	#one-to-one model
+	# one-to-one model
 	timetable = db.relationship('Timetable', back_populates = 'user', uselist = False)
 
+	# one-to-many model
+	member_task = db.relationship('Task', back_populates='task_member', uselist=True, cascade='all, delete-orphan', lazy=True)
+
+	
 	def __init__(self, chatID, telehandle):
 		self.chatID = chatID
 		self.telehandle = telehandle
@@ -60,7 +64,7 @@ class Timetable(db.Model):
 				}
 
 class Group(db.Model):
-	__tablename__ = 'group'
+	__tablename__ = 'Group'
 
 	groupid = db.Column(db.Integer, primary_key=True)
 	# commontime = db.Column(db.list, unique=True, nullable=False)  
@@ -69,8 +73,13 @@ class Group(db.Model):
 	# one-to-many model
 	majdates_group = db.relationship('Maj_Dates', back_populates='group_majdates', uselist=True, cascade='all, delete-orphan', lazy=True)
 
+	# one-to-many model
 	meeting_group = db.relationship('Meeting', back_populates='group_meeting', uselist=True, cascade='all, delete-orphan', lazy=True)
 
+	# one-to-many model
+	group_task = db.relationship('Task', back_populates='task_group', uselist=True, cascade='all, delete-orphan', lazy=True)
+
+	
 	def __init__(self, groupid, commontime):
 		self.groupid = groupid
 		self.commontime = commontime
@@ -131,4 +140,36 @@ class Meeting(db.Model):
 			'venue': self.venue,
 			'date and time of meeting': self.meeting_datetime,
 			'agenda': self.agenda 
+		}
+
+
+class Task(db.Model):
+	__tablename__ = 'Task'
+	id = db.Column(db.Integer, primary_key=True)
+	member = db.Column(db.Float, unique=True, nullable=False) #see if we can store/keep track of members after first initialization, --> in-line keyboard
+	header = db.Column(db.String(80), unique=True, nullable=False)
+	deadline = db.Column(db.String(80), unique=False, nullable=False) #try in-line text
+	desc = db.Column(db.String(1000), unique=False, nullable=False)
+	
+	# one-to-many model
+	task_member = db.relationship('Member', back_populates='member_task', uselist=True, cascade='all, delete-orphan', lazy=True)
+	# one-to-many model
+	task_group = db.relationship('Group', back_populates='group_task', uselist=True, cascade='all, delete-orphan', lazy=True)
+	
+	def __init__(self, member, header, deadline, desc):
+		self.member = member
+		self.header = header
+		self.deadline = deadline
+		self.desc = desc
+
+	def __repr__(self):
+		return '<id {}>'.format(self.id)
+
+	def serialize(self):
+		return {
+		    'id': self.id, 
+		    'member': self.member,
+		    'header': self.header,
+		    'deadline': self.deadline,
+		    'desc': self.desc, #key on the left can be anything, but the reference on the right has to be linked to the things on top
 		}
