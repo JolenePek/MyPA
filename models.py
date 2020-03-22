@@ -81,6 +81,9 @@ class Group(db.Model):
 		self.groupid = groupid
 		self.commontime = commontime
 
+	def __repre__(self, groupid):
+		return '<group {}>'.format(self.groupid)
+
 	def serialize(self):
 		return {
 			'groupid': self.groupid, 
@@ -103,6 +106,9 @@ class Maj_Dates(db.Model):
 		self.groupid = groupid
 		self.major_desc = major_desc
 		self.deadline = deadline 
+	
+	def __repre__(self, id, groupid):
+		return '<major date id {} for group {}>'.format(self.id, self.groupid)
 
 	def serialize(self):
 		return {
@@ -129,6 +135,9 @@ class Meeting(db.Model):
 		self.venue = venue
 		self.meeting_datetime = meeting_datetime
 		self.agenda = agenda 
+	
+	def __repr__(self):
+		return '<meeting id {} for group {} >'.format(self.id, self.groupid)
 
 	def serialize(self):
 		return {
@@ -145,14 +154,14 @@ class Task(db.Model):
 	id = db.Column(db.Integer, primary_key=True)
 	#member = db.Column(db.Float, unique=True, nullable=False) #see if we can store/keep track of members after first initialization, --> in-line keyboard # thinkn no nned cause back populate to user table alr
 	header = db.Column(db.String(80), unique=True, nullable=False)
-	deadline = db.Column(db.String(80), unique=False, nullable=False) #try in-line text
+	deadline = db.Column(db.DateTime, unique=False, nullable=False) #try in-line text
 	desc = db.Column(db.String(1000), unique=False, nullable=False)
 	
 	# one-to-many model
-	task_member = db.relationship('Member', back_populates='member_task', uselist=True, cascade='all, delete-orphan', lazy=True)
+	task_member = db.relationship('Member', back_populates='member_task')
 	
 	# one-to-many model
-	task_group = db.relationship('Group', back_populates='group_task', uselist=True, cascade='all, delete-orphan', lazy=True)
+	task_group = db.relationship('Group', back_populates='group_task')
 	
 	def __init__(self, header, deadline, desc):
 		#self.member = member
