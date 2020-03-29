@@ -123,7 +123,7 @@ class Meeting(db.Model):
 
 	id = db.Column(db.Integer, primary_key=True)
 	groupid = db.Column(db.Integer, db.ForeignKey('Group.groupid'), nullable=False)
-	venue = db.Column(db.String(80), unique=True)
+	venue = db.Column(db.String(80))
 	meeting_datetime = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
 	agenda = db.Column(db.String(80), unique=True)
 
