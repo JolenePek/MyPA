@@ -99,7 +99,7 @@ class Maj_Dates(db.Model):
 	major_desc = db.Column(db.String(80), unique=True, nullable=False)
 	deadline = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
 	
-	group_majdates = db.relationship('Menu', back_populates='majdates_group ')
+	group_majdates = db.relationship('Group', back_populates='majdates_group ')
 
 	def __init__(self, id, groupid, major_desc, deadline):
 		self.id = id
@@ -152,6 +152,8 @@ class Meeting(db.Model):
 class Task(db.Model):
 	__tablename__ = 'Task'
 	id = db.Column(db.Integer, primary_key=True)
+	chat_id = db.Column(db.Integer, db.ForeignKey('Member.chatID'), nullable=False)
+	groupid = db.Column(db.Integer, db.ForeignKey('Group.groupid'), nullable=False)
 	#member = db.Column(db.Float, unique=True, nullable=False) #see if we can store/keep track of members after first initialization, --> in-line keyboard # thinkn no nned cause back populate to user table alr
 	header = db.Column(db.String(80), unique=True, nullable=False)
 	deadline = db.Column(db.DateTime, unique=False, nullable=False) #try in-line text
