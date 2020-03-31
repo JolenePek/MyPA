@@ -2,6 +2,8 @@ import datetime
 import string 
 
 from app import db
+import os 
+
 
 class Member(db.Model):
 	__tablename__ = 'Member'
@@ -57,6 +59,7 @@ class Timetable(db.Model):
 			'chat_id' : self.chat_id,
 			'classcode' : self.classcode,
 			'day' : self.day,
+			'time' : self.time, 
 			'time' : self.time
 				}
 
