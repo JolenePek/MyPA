@@ -2,8 +2,6 @@ import datetime
 import string 
 
 from app import db
-import os 
-
 
 class Member(db.Model):
 	__tablename__ = 'Member'
@@ -60,7 +58,6 @@ class Timetable(db.Model):
 			'classcode' : self.classcode,
 			'day' : self.day,
 			'time' : self.time, 
-			'time' : self.time
 				}
 
 class Group(db.Model):
