@@ -3,6 +3,7 @@ import string
 
 from app import db
 
+
 class Member(db.Model):
 	__tablename__ = 'Member'
 
