@@ -11,7 +11,7 @@ from datetime import datetime, date, timedelta
 from collections import OrderedDict 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-TOKEN = ''
+TOKEN = '' #remember to add token here!
 bot = telebot.TeleBot(token=TOKEN)
 
 #knownUsers = [] #https://github.com/eternnoir/pyTelegramBotAPI/blob/master/examples/detailed_example/detailed_example.py
@@ -23,9 +23,13 @@ commands = {  # command description used in the "help" command
 	'majordates'  : 'Important dates to take note for particular module',
 	'majordatesreminder'    : 'Returns a list of all important dates and what so important about it',
 	'delmajordates': 'deletes existing record with particular date',
-	'end'         : 'to end majordate'
+	'gettasks' : 'Returns a list of all the tasks', 
+	'createtask': 'Creates a new task',
+	'deltasks': 'Deletes existing record of a particular task',
+	'end'         : 'To stop commands'
 } #just for reference sake
-users_state = {'get deadlines': 0, 'get desc': 0, 'get deldate': 0, 'get meetingdate':0, 'get meetingvenue':0} 
+users_state = {'get deadlines': 0, 'get desc': 0, 'get deldate': 0, 'get meetingdate':0, 'get meetingvenue':0, 'del task':0,'get del task date':0, 'get task deadline':0, 'get task header':0, 'get task desc':0} 
+
 
 def write_json(data,filename = 'trytelebot.json'):
 	with open(filename, 'w') as f:
@@ -73,15 +77,16 @@ def send_welcome(message):
 				raise
 			finally:
 				db.session.close()
-			bot.send_message(group_id,'Welcome! \nThe different functions are as follows:\n/majordates: Input any major dates to take note of for the whole group~ \n/majordatesreminder: Return all your major dates\n/delmajordates: Remove records of a particular major date')
+			bot.send_message(group_id,'Welcome! \nThe different functions are as follows:\n {}'.format({key: commands[key] + commands.get(key, '\n') for key in commands.keys()} )
 		except:
-			bot.send_message(group_id,'Welcome again! \nThe different functions are as follows:\n/majordates: Input any major dates to take note of for the whole group~ \n/majordatesreminder: Return all your major dates\n/delmajordates: Remove records of a particular major date')
+			bot.send_message(group_id,'Welcome again! \nThe different functions are as follows:\n {}'.format({key: commands[key] + commands.get(key, '\n') for key in commands.keys()} ))
 			
 	else: #wrote this to just test for personal msging w bot.. actually no need de
 		group_id = None
 		chat_id = id
 		bot.send_message(chat_id,'group_id is {}, chat_id is {}'.format(group_id,chat_id))
 
+		
 @bot.message_handler(commands=['majordates'])
 def send_introduction(message):
 	id = message.chat.id #shd be negative number if grp
@@ -148,6 +153,39 @@ def setmeeting(message):
 		group_id = id
 		bot.send_message(group_id,'Please input the datetime of the meeting in the format dd/mm/yyyy hh:mm')
 		users_state['get meetingdate'] = 1 #waiting specific reply to /setmeeting
+
+
+@bot.message_handler(commands=['gettasks'])
+def gettasks(message):
+    id = message.chat.id 
+    if id < 0: # group 
+        groupid = id 
+        tasks= task_table.query.filter_by(group_id= groupid)
+        bot.send_message(groupid, jsonify(tasks)) #how to settle the chatid?
+    else:
+        id = str(id) 
+        tasks= task_table.query.filter_by(id=id)
+        bot.send_message(id, jsonify(tasks))
+
+@bot.message_handler(commands=['deltasks'])
+def del_tasks(message):
+	id = message.chat.id #shd be negative number if grp
+    users_state['del task'] = 1
+	if id < 0:
+		group_id = id
+		bot.send_message(group_id,'Please input a date that you no longer wish to keep track of')
+		users_state['get del task date'] = 1 
+
+@bot.message_handler(commands=['createtask'])
+def send_introduction(message):
+	id = message.chat.id #shd be negative number if grp
+	if id < 0:
+		group_id = id
+		bot.send_message(group_id,'Please input a date and time in the format dd/mm/yyyy')
+		users_state['get task deadline'] = 1 #waiting specific reply
+
+
+
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def msg_deadlines(message):
@@ -218,6 +256,50 @@ def msg_deadlines(message):
 				bot.send_message(group_id, 'Please try again with valid datetime in format dd/mm/yyyy hh:mm')
 				users_state["get meetingdate"] = 1 #still waiting for valid repsonse to /setmeeting
 
+		# delete task 
+		elif users_state['del task'] == 1 and users_state['get del task date'] ==1:
+			try:
+				del_task = datetime.strptime(text, "%d/%m/%Y")
+				taskdeleted = task_table.query.filter_by(groupid = str(group_id), deadline=del_task).delete()
+			except:
+				bot.send_message(group_id, 'Please try again with valid date and time in format dd/mm/yyyy')
+				users_state["get del task date"] = 1
+
+		# create task 
+		elif users_state['get task deadline'] == 1:
+			try:
+				new_task_date = datetime.strptime(text, "%d/%m/%Y")
+				bot.send_message(group_id,'Please give your task a header:')
+				users_state['get task deadline'] = 0 
+				users_state['get task header'] = 1
+			except:
+				bot.send_message(group_id, 'Please provide a valid date with the format DD/MM/YYYY')
+		elif users_state['get task header'] == 1:
+			if len(message.text) >80:
+				bot.send_message(group_id, 'Please fill in a header that is less than 80 characters.')
+			else: 
+				try:
+					new_task_header = message.text
+					bot.send_message(group_id, 'Plase give your task {} a description.'.format(new_task_header))
+					users_state['get task header']= 0 
+					users_state['get task desc'] = 1
+				except:
+					bot.send_message(group_id, 'Please fill in a valid task header.')
+		elif users_state['get task desc'] == 1: 
+			if len(message.text) >1000:
+				bot.send_message(group_id, 'Please provide a task description for task {} with less than 1000 characters.'.format(new_task_header))
+			else:
+				new_task_desc = message.text 
+				new_task = task_table(groupid=str(group_id), header = new_task_header,desc = new_task_desc, deadline = new_task_date)
+				db.session.add(new_task)
+				try:
+					db.session.commit()
+				except:
+					db.session.rollback()
+					raise
+				finally:
+					db.session.close()
+			
 			
 
 def check_dates():
