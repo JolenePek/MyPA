@@ -1,16 +1,49 @@
 import datetime
 import string 
 from app import db
+from sqlalchemy.ext.associationproxy import association_proxy
+# task_table = db.Table('Task',
+# 	db.Column('id', db.Integer, primary_key=True),
+# 	db.Column('group_id', db.String(1000), db.ForeignKey('Group.groupid',ondelete='cascade'), primary_key=True),
+# 	db.Column('chat_id', db.Integer, db.ForeignKey('Member.chatID',ondelete='cascade'), primary_key=True),
+# 	db.Column('header', db.String(80), unique=True, nullable = False),
+# 	db.Column('desc', db.String(1000), nullable = False),
+# 	db.Column('deadline', db.DateTime, nullable = False)
+# )
 
-task_table = db.Table('Task',
-	db.Column('id', db.Integer, primary_key=True),
+group_member_table = db.Table('Groupmember',
 	db.Column('group_id', db.String(1000), db.ForeignKey('Group.groupid',ondelete='cascade'), primary_key=True),
 	db.Column('chat_id', db.Integer, db.ForeignKey('Member.chatID',ondelete='cascade'), primary_key=True),
-	db.Column('header', db.String(80), unique=True, nullable = False),
-	db.Column('desc', db.String(1000), nullable = False),
-	db.Column('deadline', db.DateTime, nullable = False)
 )
 
+
+#https://stackoverflow.com/questions/38654624/flask-sqlalchemy-many-to-many-relationship-new-attribute
+
+class MemberGroupTask(db.Model):
+	__tablename__ = 'MemberGroupTask'
+	id = db.Column(db.Integer, primary_key=True,autoincrement=True)
+	group_id = db.Column(db.String(1000), db.ForeignKey('Group.groupid'),nullable=False)
+	chat_id = db.Column(db.Integer, db.ForeignKey('Member.chatID'),nullable=False)
+	desc = db.Column('desc', db.String(1000), nullable = False)
+	deadline = db.Column('deadline', db.DateTime, nullable = False)
+
+	task_member = db.relationship("Member", back_populates="member_task")
+	task_group = db.relationship("Group", back_populates="group_task")
+
+	def __init__(self, group_id, chat_id,desc,deadline):
+		self.group_id = group_id
+		self.chat_id = chat_id
+		self.desc = desc
+		self.deadline = deadline
+
+	def serialize(self):
+		return {
+			'id': self.id,
+			'group_id' : self.group_id,
+			'chat_id' : self.chat_id,
+			'desc':self.desc,
+			'deadline':self.dealine
+				}
 
 class Member(db.Model):
 	__tablename__ = 'Member'
@@ -27,10 +60,16 @@ class Member(db.Model):
 
 	# one-to-many model
 	#member_freetime = db.relationship('Freetime', back_populates='freetime_member',uselist=True)
-	
 	#many-to-many model
-	groupmemberid = db.relationship('Group', secondary=task_table, back_populates='membergroupid', lazy=True)
+	member_task = db.relationship("MemberGroupTask", back_populates="task_member",uselist=True, cascade='all, delete-orphan', lazy=True)
+	#many-to-many model
+	#groupmemberid = db.relationship('Group', secondary=task_table, back_populates='membergroupid', lazy=True)
+	#many-to-many model
+	groupmember = db.relationship('Group', secondary=group_member_table, back_populates='membergroup', lazy=True)
 
+	#association proxy
+	#tasks = association_proxy("member_task", "Group")
+	
 	def __init__(self, chatID, telehandle):
 		self.chatID = chatID
 		self.telehandle = telehandle
@@ -106,7 +145,7 @@ class Group(db.Model):
 
 	groupid = db.Column(db.String(1000), primary_key=True, nullable=False)
 	commontime = db.Column(db.String(100000), unique=True, nullable=False)  
-
+	group_name = db.Column(db.String(100000), unique=True, nullable=False)
 	# theres no way to make this a list/dict directly. will figure out soon
 
 
@@ -118,18 +157,22 @@ class Group(db.Model):
 
 	# one-to-many model
 	#group_task = db.relationship('Task', back_populates='task_group', uselist=True, cascade='all, delete-orphan', lazy=True)
-
+	#many-to-many model
+	group_task = db.relationship("MemberGroupTask", back_populates="task_group", uselist=True, cascade='all, delete-orphan', lazy=True)
 	# one-to-one model
 	#group_freetime = db.relationship('Freetime', back_populates='freetime_group', uselist=False)
-	
 	#many-to-many model
-	membergroupid = db.relationship('Member', secondary=task_table, back_populates='groupmemberid', lazy=True)
+	#membergroupid = db.relationship('Member', secondary=task_table, back_populates='groupmemberid', lazy=True)
+	#many-to-many model
+	membergroup = db.relationship('Member', secondary=group_member_table, back_populates='groupmember', lazy=True)
 
-	def __init__(self, groupid, commontime):
+
+	def __init__(self, groupid, commontime, group_name):
 
 		self.groupid = groupid
 
 		self.commontime = commontime
+		self.group_name = group_name
 
 
 
@@ -146,7 +189,7 @@ class Group(db.Model):
 			'groupid': self.groupid, 
 
 			'commontime': self.commontime,
-
+			'group_name':self.group_name
 		}
 
 
@@ -217,11 +260,11 @@ class Meeting(db.Model):
 
 	groupid = db.Column(db.String(1000), db.ForeignKey('Group.groupid'), nullable=False)
 
-	venue = db.Column(db.String(80), unique=True)
+	venue = db.Column(db.String(80))
 
 	meeting_datetime = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
 
-	agenda = db.Column(db.String(80), unique=True)
+	agenda = db.Column(db.String(80), unique=False)
 
 
 	#one-to-many
@@ -262,8 +305,6 @@ class Meeting(db.Model):
 			'agenda': self.agenda 
 
 		}
-
-
 
 
 
