@@ -50,6 +50,7 @@ class Member(db.Model):
 	
 	chatID = db.Column(db.Integer, primary_key = True, unique = True, nullable = False)
 	telehandle = db.Column(db.String(32), unique = True, nullable = False) 
+	freetime = db.Column(db.String(280), unique = False, nullable = True)
 	modified_timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 	# one-to-one model
@@ -65,23 +66,25 @@ class Member(db.Model):
 	#many-to-many model
 	#groupmemberid = db.relationship('Group', secondary=task_table, back_populates='membergroupid', lazy=True)
 	#many-to-many model
-	groupmember = db.relationship('Group', secondary=group_member_table, back_populates='membergroup', lazy=True)
+	groupmember = db.relationship('Group', secondary=group_member_table, back_populates='membergroup')
 
 	#association proxy
 	#tasks = association_proxy("member_task", "Group")
 	
-	def __init__(self, chatID, telehandle):
+	def init(self, chatID, telehandle, freetime):
 		self.chatID = chatID
 		self.telehandle = telehandle
+		self.freetime = freetime
 
 	def __repre__(self, chatID):
 		return '<this user {}>'.format(self.chatID)
 
 	def serialize(self):
 		return {
-			'chatID' : self.chatID,
-			'telehandle' : self.telehandle
-				}
+		'chatID' : self.chatID,
+		'telehandle' : self.telehandle,
+		'classes' : [{"classcode": t.classcode, 'day': t.day, 'start_time': t.start_time, 'end_time': t.end_time} for t in self.timetable]
+			}
 
 
 
@@ -94,24 +97,28 @@ class Timetable(db.Model):
 
 	# time = db.Column(db.String(20), unique = False, nullable = False)
 
-	chat_id = db.Column(db.Integer, db.ForeignKey('Member.chatID'), primary_key=True)
-	freetime = db.Column(db.String(1000000), unique = False, nullable = False)
+	# chat_id = db.Column(db.Integer, db.ForeignKey('Member.chatID'), primary_key=True)
+	# freetime = db.Column(db.String(1000000), unique = False, nullable = False)
+	id = db.Column(db.Integer, primary_key = True, autoincrement = True)
+	chat_id = db.Column(db.Integer, db.ForeignKey('Member.chatID'), nullable = False)
+	class_code = db.Column(db.String(20), unique = False, nullable = False)
+	day = db.Column(db.String(3), unique = False, nullable = False)
+	start_time = db.Column(db.String(4), unique = False, nullable = False)
+	end_time = db.Column(db.String(4), unique = False, nullable = False)
 	modified_timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+	#modified_timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 	#one-to-one model
 	user = db.relationship('Member', back_populates = 'timetable', uselist = False)
 
 
 
-	def __init__(self, classcode, day, time, chat_id):
-
+	def init(self, classcode, day, start_time, end_time, chat_id):
 		self.chat_id = chat_id
-
 		self.classcode = classcode
-
 		self.day = day
-
-		self.time = time
+		self.start_time = start_time
+		self.end_time = end_time
 
 
 
@@ -124,18 +131,13 @@ class Timetable(db.Model):
 
 
 	def serialize(self):
-
 		return {
-
-			'chat_id' : self.chat_id,
-
-			'classcode' : self.classcode,
-
-			'day' : self.day,
-
-			'time' : self.time
-
-				}
+		'chat_id' : self.chat_id,
+		'classcode' : self.classcode,
+		'day' : self.day,
+		'start_time' : self.start_time,
+		'end_time' : self.end_time
+			}
 
 
 
@@ -144,7 +146,7 @@ class Group(db.Model):
 	__tablename__ = 'Group'
 
 	groupid = db.Column(db.String(1000), primary_key=True, nullable=False)
-	commontime = db.Column(db.String(100000), unique=True, nullable=False)  
+	commontime = db.Column(db.String(100000), unique=False, nullable=True)  
 	group_name = db.Column(db.String(100000), unique=True, nullable=False)
 	# theres no way to make this a list/dict directly. will figure out soon
 
@@ -164,7 +166,7 @@ class Group(db.Model):
 	#many-to-many model
 	#membergroupid = db.relationship('Member', secondary=task_table, back_populates='groupmemberid', lazy=True)
 	#many-to-many model
-	membergroup = db.relationship('Member', secondary=group_member_table, back_populates='groupmember', lazy=True)
+	membergroup = db.relationship('Member', secondary=group_member_table, back_populates='groupmember')
 
 
 	def __init__(self, groupid, commontime, group_name):
