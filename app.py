@@ -20,7 +20,7 @@ import csv
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 
-TOKEN = '1111686038:AAE0LDWxg_x6vPZjq9Uo_PItJLrFg_fy-n0'#change this to ur TOKEN
+TOKEN = ''#change this to ur TOKEN
 bot = telebot.TeleBot(token=TOKEN)
 s = requests.Session()
 retries = Retry(total=5,
