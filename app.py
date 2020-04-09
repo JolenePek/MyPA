@@ -17,9 +17,17 @@ import ast
 from multiprocessing import Process, Manager
 from os import path, getenv
 import csv
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
 
-TOKEN = ''#change this to ur TOKEN
+TOKEN = '1111686038:AAE0LDWxg_x6vPZjq9Uo_PItJLrFg_fy-n0'#change this to ur TOKEN
 bot = telebot.TeleBot(token=TOKEN)
+s = requests.Session()
+retries = Retry(total=5,
+                backoff_factor=0.1,
+                status_forcelist=[ 500, 502, 503, 504 ])
+s.mount('https://', HTTPAdapter(max_retries=retries))
+
 
 #knownUsers = [] #https://github.com/eternnoir/pyTelegramBotAPI/blob/master/examples/detailed_example/detailed_example.py
 majordatelist = []
@@ -35,6 +43,7 @@ commitlist = []
 printcommontime = []
 activegroupid = []
 activechatid = []
+filenamelist = []
 convert_to_binary_dict = {}
 
 commands = {  # command description used in the "help" command
@@ -430,33 +439,29 @@ def sendcsvfiles(message):
 		group_id = id
 		group_name = message.chat.title
 		multigroup[str(group_id)] = users_state
-		bot.send_message(group_id,'Can all of you in {} send me your timetable csv files? Type /finecommontime when finished!'.format(group_name))
+		bot.send_message(group_id,'Can all of you send me your timetable csv files downloaded from BOSS? Type /findcommontime when finished!')
 		multigroup[str(group_id)]['get files'] = 1
 		filenamedict[str(group_id)] = []
 		convert_to_binary_dict[str(group_id)] = []
 
 @bot.message_handler(commands=['findcommontime'])
 def findcommontime(message):
-	group_id = message.chat.id
-	try:
-		group_commontime = Group.query.filter_by(groupid = str(group_id)).first().commontime
-		mon = group_commontime[:56]
-		tue = group_commontime[56:112]
-		wed = group_commontime[112:168]
-		thu = group_commontime[168:224]
-		fri = group_commontime[224:]
+	id = message.chat.id #shd be negative number if grp
+	if id < 0:
+		group_id = id
+		activegroupid.append(group_id)
+		bot.send_message(group_id,'Processing common time...')
+		multigroup[str(group_id)]["get files"] = 0
+		
+		for k,v in filenamedict.items():
+			if k == str(group_id):
+				for filename in v:
+					with open(r"{}".format(filename), 'r') as x:
+						this_user_class_schedule = timetable_prep(x)
+						timetable_filtering(this_user_class_schedule, group_one_schedule)
+		
+		show_avail_timeslots(group_one_schedule)
 
-		week = [(mon, 'mon'), (tue, 'tue'), (wed, 'wed'), (thu, 'thu'), (fri, 'fri')]
-
-		final_output = []
-		for day in week:
-			current = compiler(day[0]) #current == [(16, '0'), (13, '1'), (1, '0'), (13, '1'), (13, '0')]
-		#     print(day[1]) #day 
-		#     print(binary_to_hour_v2(current)) #compiled timeslots in each day
-			final_output.append((day[1], binary_to_hour_v2(current)))
-		bot.send_message(group_id,'Your common times are as follows:\n'+ str(json.dumps(final_output, sort_keys=True, indent = 4)))
-	except Exception as e:
-		bot.send_message(group_id,str(e))
 # @bot.message_handler(commands=['findcommontime'])
 # def done(message):
 # 	id = message.chat.id #shd be negative number if grp
@@ -626,9 +631,7 @@ def allmessages(message):
 				existing_group_member = Group.query.join(Group.membergroup).filter_by(chatID = chat_id)
 				telehandlelist.append(text)
 				chat_idlist.append(chat_id)
-				bot.send_message(group_id, 'Please input all the deadlines and tasks due by each deadline for {}!~\n'.format(telehandlelist[0])
-				+ 'If he/she only has one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\'}\n' +
-				'If he/she only has more than one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\', \'dd/mm/yyyy\': \'task2\', \'dd/mm/yyyy\': \'task3\'}')
+				bot.send_message(group_id, 'Please send me the task deadline and description in this format, below is an example to follow:)\nDD/MM/YYYY - TASK DESC\n08/04/2020 - Finish up slide deck')
 				multigroup[str(group_id)]["get taskdatedesc"] = 1
 				multigroup[str(group_id)]["get taskusername"] = 0
 			except:
@@ -638,55 +641,96 @@ def allmessages(message):
 		elif multigroup[str(group_id)]["get taskdatedesc"] == 1:
 			text = message.text
 			try:
-				taskdict = eval(text)
-				count = 0
-				for k,v in taskdict.items():
-					count += 1
-					try:
-						taskdate = datetime.strptime(k, "%d/%m/%Y")
-						# bot.send_message('iwork')
-					except:
-						bot.send_message(group_id, 'An invalid date was found!\nPlease input all the deadlines and tasks due by each deadline for {}!~\n'.format(telehandlelist[0])
-					+ 'If he/she only has one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\'}\n' +
-					'If he/she only has more than one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\', \'dd/mm/yyyy\': \'task2\', \'dd/mm/yyyy\': \'task3\'}')	
-						multigroup[str(group_id)]["get taskdatedesc"] = 1
-						
-
-					if v is None:
-						bot.send_message(group_id, 'An empty task was found!\nPlease input all the deadlines and tasks due by each deadline for {}!~\n'.format(telehandlelist[0])
-				+ 'If he/she only has one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\'}\n' +
-				'If he/she only has more than one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\', \'dd/mm/yyyy\': \'task2\', \'dd/mm/yyyy\': \'task3\'}')	
-						multigroup[str(group_id)]["get taskdatedesc"] = 1
-					
-					else:
-						taskdesc = str(v)
-
-					chat_id = chat_idlist[0]
-					new_task = MemberGroupTask(group_id=str(group_id), chat_id = chat_id, desc = taskdesc, deadline = taskdate)
-					commitlist.append(new_task) #somehow cannot repeat dates eg{'8/4/2020':'1', '7/4/2020':'2','7/4/2020':'3'} only last output appears
-					
-				db.session.add_all(commitlist)
+				text_split = text.split('-')
+				date = text_split[0].strip(' ')
+				try:
+					taskdesc = text_split[1].strip(' ')
+				except:
+					bot.send_message(group_id, 'An empty task was found!\n'
+				+ 'Please send me the task deadline and description in this format, below is an example to follow:)\nDD/MM/YYYY - TASK DESC\n08/04/2020 - Finish up slide deck')	
+					multigroup[str(group_id)]["get taskdatedesc"] = 1
 
 				try:
-					db.session.commit()
+					taskdate = datetime.strptime(date, "%d/%m/%Y")
 				except:
-					db.session.rollback()
-					raise
-				finally:
-					db.session.close()
-				
-				bot.send_message(group_id,'Added tasks for {}.\n'.format(telehandlelist[0])+'Please input another telegram username without the \'@\' (e.g. user) from this group to assign the task(s) to or type /end to end this command')
-				telehandlelist.clear()
-				commitlist.clear()
-				chat_idlist.clear()
-				multigroup[str(group_id)]["get taskdatedesc"] = 0
-				multigroup[str(group_id)]["get taskusername"] = 1
-
-			except Exception as e:
-				bot.send_message(group_id, 'Please try again in the proper format!\nPlease input all the deadlines and tasks due by each deadline for {}!~\n'.format(telehandlelist[0])
-				+ 'If he/she only has one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\'}\n' +
-				'If he/she only has more than one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\', \'dd/mm/yyyy\': \'task2\', \'dd/mm/yyyy\': \'task3\'}')	
+					bot.send_message(group_id, 'An invalid date was found!\n'
+				+ 'Please send me the task deadline and description in this format, below is an example to follow:)\nDD/MM/YYYY - TASK DESC\n08/04/2020 - Finish up slide deck')	
+					multigroup[str(group_id)]["get taskdatedesc"] = 1
+			except:
+				bot.send_message(group_id, 'Remember to put - between deadline and task description\nPlease send me the task deadline and description in this format, below is an example to follow:)\nDD/MM/YYYY - TASK DESC\n08/04/2020 - Finish up slide deck')
 				multigroup[str(group_id)]["get taskdatedesc"] = 1
+
+			chat_id = chat_idlist[0]
+			new_task = MemberGroupTask(group_id=str(group_id), chat_id = chat_id, desc = taskdesc, deadline = taskdate)
+			# commitlist.append(new_task) #somehow cannot repeat dates eg{'8/4/2020':'1', '7/4/2020':'2','7/4/2020':'3'} only last output appears
+					
+			db.session.add(new_task)
+
+			try:
+				db.session.commit()
+			except:
+				db.session.rollback()
+				raise
+			finally:
+				db.session.close()
+			
+			bot.send_message(group_id,'Added tasks for {}.\n'.format(telehandlelist[0])+'Please input another telegram username without the \'@\' (e.g. user) from this group to assign the task(s) to or type /end to end this command')
+			telehandlelist.clear()
+			commitlist.clear()
+			chat_idlist.clear()
+			multigroup[str(group_id)]["get taskdatedesc"] = 0
+			multigroup[str(group_id)]["get taskusername"] = 1
+
+			# try:
+			# 	taskdict = eval(text)
+			# 	count = 0
+			# 	for k,v in taskdict.items():
+			# 		count += 1
+			# 		try:
+			# 			taskdate = datetime.strptime(k, "%d/%m/%Y")
+			# 			# bot.send_message('iwork')
+			# 		except:
+			# 			bot.send_message(group_id, 'An invalid date was found!\nPlease input all the deadlines and tasks due by each deadline for {}!~\n'.format(telehandlelist[0])
+			# 		+ 'If he/she only has one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\'}\n' +
+			# 		'If he/she only has more than one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\', \'dd/mm/yyyy\': \'task2\', \'dd/mm/yyyy\': \'task3\'}')	
+			# 			multigroup[str(group_id)]["get taskdatedesc"] = 1
+						
+
+			# 		if v is None:
+			# 			bot.send_message(group_id, 'An empty task was found!\nPlease input all the deadlines and tasks due by each deadline for {}!~\n'.format(telehandlelist[0])
+			# 	+ 'If he/she only has one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\'}\n' +
+			# 	'If he/she only has more than one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\', \'dd/mm/yyyy\': \'task2\', \'dd/mm/yyyy\': \'task3\'}')	
+			# 			multigroup[str(group_id)]["get taskdatedesc"] = 1
+					
+			# 		else:
+			# 			taskdesc = str(v)
+
+			# 		chat_id = chat_idlist[0]
+			# 		new_task = MemberGroupTask(group_id=str(group_id), chat_id = chat_id, desc = taskdesc, deadline = taskdate)
+			# 		commitlist.append(new_task) #somehow cannot repeat dates eg{'8/4/2020':'1', '7/4/2020':'2','7/4/2020':'3'} only last output appears
+					
+			# 	db.session.add_all(commitlist)
+
+			# 	try:
+			# 		db.session.commit()
+			# 	except:
+			# 		db.session.rollback()
+			# 		raise
+			# 	finally:
+			# 		db.session.close()
+				
+			# 	bot.send_message(group_id,'Added tasks for {}.\n'.format(telehandlelist[0])+'Please input another telegram username without the \'@\' (e.g. user) from this group to assign the task(s) to or type /end to end this command')
+			# 	telehandlelist.clear()
+			# 	commitlist.clear()
+			# 	chat_idlist.clear()
+			# 	multigroup[str(group_id)]["get taskdatedesc"] = 0
+			# 	multigroup[str(group_id)]["get taskusername"] = 1
+
+			# except Exception as e:
+			# 	bot.send_message(group_id, 'Please try again in the proper format!\nPlease input all the deadlines and tasks due by each deadline for {}!~\n'.format(telehandlelist[0])
+			# 	+ 'If he/she only has one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\'}\n' +
+			# 	'If he/she only has more than one deadline, please input the deadline in this format {\'dd/mm/yyyy\': \'task1\', \'dd/mm/yyyy\': \'task2\', \'dd/mm/yyyy\': \'task3\'}')	
+			# 	multigroup[str(group_id)]["get taskdatedesc"] = 1
 			
 	if message.chat.type == 'private':	
 		chat_id = message.chat.id
@@ -783,7 +827,9 @@ def allmessages(message):
 				bot.send_message(chat_id, 'No records of you in this group. Type /taskreminder to be reminded of your tasks from another group or /end to end this command')
 				multippl[str(chat_id)]["get taskreminder"] = 0
 
-def downloader(filenames,urls): #DONE
+
+
+def downloader(filenames,urls):
 	filename=""
 	while filename != "QUIT":
 		try:
@@ -800,253 +846,45 @@ def downloader(filenames,urls): #DONE
 					if chunk: 
 						f.write(chunk)
 			print("Download completed")
-			
-			with open(r"{}".format(filename), 'r') as x:
-				chat_id = activechatid[0]
-				this_user_class_schedule = timetable_prep(x)
-				this_user_binary = convert_to_binary(this_user_class_schedule)
-				convert_to_binary_dict[str(activegroupid[0])].append(this_user_binary)
-				
-				user = Member.query.get(chat_id)			
-				user.freetime = this_user_binary
-				try:
-					db.session.commit()
-				except:
-					db.session.rollback()
-					raise
-				finally:
-					db.session.close()
-
-				del_timetable = Timetable.query.filter_by(chat_id = chat_id).delete()
-				try:
-					db.session.commit()
-				except:
-					db.session.rollback()
-					raise
-				finally:
-					db.session.close()
-
-				try:
-					for c in this_user_class_schedule:
-						new_timetable = Timetable(chat_id = chat_id, class_code = c[3], day = c[0], start_time = c[1], end_time = c[2])
-						db.session.add(new_timetable)
-						try:
-							db.session.commit()
-						except:
-							db.session.rollback()
-							raise
-						finally:
-							db.session.close()
-
-				except Exception as e:
-					pass
-
-			groupsin = Group.query.join(Group.membergroup).filter(Member.chatID == activechatid[0]).all()
-			user = Member.query.get(chat_id)
-			
-			for group in groupsin:
-				db.session.expunge_all()
-				group_id = group.groupid	
-				groupcommontime = Group.query.filter_by(groupid = str(group_id)).first().commontime
-				if groupcommontime == None:
-					bot.send_message(group_id,'here')
-					finalgroup = Group.query.get(str(group_id))
-					finalgroup.commontime = this_user_binary
-					try:
-						db.session.commit()
-					except:
-						db.session.rollback()
-						raise
-					finally:
-						db.session.close()
-				else:
-					newcommontime = ''
-					y = (user.freetime).split()
-					z = (groupcommontime).split()
-					for i in range(len(y)):
-						summation = int(y[i]) + int(z[i])
-						newcommontime += str(summation)
-
-					groupcommontime = newcommontime
-					try:
-						db.session.commit()
-					except:
-						db.session.rollback()
-						raise
-					finally:
-						db.session.close()
-					
-					newestcommontime = ''
-					a = (groupcommontime).split()
-					for i in range(len(y)):
-						summation = int(a[i]) + int(this_user_binary[i])
-						newestcommontime += str(summation)
-					groupcommontime = newestcommontime
-					try:
-						db.session.commit()
-					except:
-						db.session.rollback()
-						raise
-					finally:
-						db.session.close()
-
-					
-			user.freetime = this_user_binary
-			try:
-				db.session.commit()
-			except:
-				db.session.rollback()
-				raise
-			finally:
-				db.session.close()
-
-
-			bot.send_message(activegroupid[0],'Downloaded completed!')
-			# bot.send_message(activegroupid[0],str(convert_to_binary_dict))
-			multigroup[str(activegroupid[0])]['get files'] = 0
-			activechatid.pop(0)
-			activegroupid.pop(0)
 			filename=""
-		
 
-def convert_to_binary(gotclass):
-	freetime = ''
-	for i in range(280):
-		freetime += '0'
-		
-	for thisclass in gotclass:
-		
-		#Find the DAY of class
-		if thisclass[0] == 'Mon':
-			placement = 0
-		elif thisclass[0] == 'Tue':
-			placement = 56
-		elif thisclass[0] == 'Wed':
-			placement = 112
-		elif thisclass[0] == 'Thu':
-			placement = 168
-		else:
-			placement = 224
-			
-		#Starting Hour
-		starting_placement = placement + ((int(thisclass[1][:2]) - 8) * 4) 
-		
-		#Starting Minute
-		starting_min = int(thisclass[1][2:])
-		if starting_min == 45:
-			starting_placement += 3
-		elif starting_min == 30:
-			starting_placement += 2
-		elif starting_min == 15:
-			starting_placement += 1
-	
-	
-		#Ending Hour
-		ending_placement = placement + ((int(thisclass[2][:2]) - 8) * 4)
-		
-		#Ending Minute
-		ending_min = int(thisclass[2][2:])
-		if ending_min == 45:
-			ending_placement += 3
-		elif ending_min == 30:
-			ending_placement += 2
-		elif ending_min == 15:
-			ending_placement += 1
-			
-		freetime = freetime[:starting_placement] + '1'*(ending_placement-starting_placement) + freetime[ending_placement:]
-		
-	return freetime
+def timetable_filtering(class_schedule, day): #filter 
+	for thisclass in class_schedule:
+		for timeslot in range(len(day[thisclass[0]])):
+			if day[thisclass[0]][timeslot][0] >= thisclass[2]:
+				continue
 
-def timetable_prep(x): #converts a csv file into a list of users' classes eg: [('Mon', '1200', '1515', 'SMT202'), ('Wed', '815', '1130', 'DSA211')]
+			elif day[thisclass[0]][timeslot][0] >= thisclass[1] and day[thisclass[0]][timeslot][1] <= thisclass[2]:
+				day[thisclass[0]][timeslot] = [0,0]
+
+			elif day[thisclass[0]][timeslot][0] >= thisclass[1] and day[thisclass[0]][timeslot][1] >= thisclass[2]:
+				day[thisclass[0]][timeslot] = [thisclass[2] , day[thisclass[0]][timeslot][1]]
+
+			elif day[thisclass[0]][timeslot][0] <= thisclass[1] and day[thisclass[0]][timeslot][1] > thisclass[1]:
+				day[thisclass[0]][timeslot][1] = thisclass[1]
+				
+def timetable_prep(x): #converts a csv file into a list of users' classes eg: [('Mon', 1200, 1515), ('Wed', 815, 1130)]
 	x.readline()
 	gotclass = []
 	for i in x:
 		x = i.replace('"',"").replace(':','')
 		row = list(x.split(','))
 		if row[6] == 'Enrolled' and row[7] == 'CLASS':
-			gotclass.append((row[10], row[11], row[12], row[3]))
+			gotclass.append((row[10], int(row[11]), int(row[12])))
 	return(gotclass)
 
-def compiler(day):
-	compiled = []
-	counter = 0
-	for i in range(56):
-		if i == 0:
-			pass    
-		if day[i] == day[i-1]:
-			counter += 1
-		else:
-			compiled.append((counter, day[i-1]))
-			counter = 1
-	compiled.append((counter, day[-1]))   #add the last block
-	return compiled
 
-def binary_to_hour_v2(day):
-    hour_by_hour = [(1,'8'), (5,'9'), (9,'10'), (13,'11'), (17,'12'), (21,'13'), (25,'14'), 
-             (29,'15'), (33,'16'), (37,'17'), (41,'18'), (45,'19'), (49,'20'), (53,'21')]
-
-    prev_time = '800'
-    prev_place = 1
-    result = []
-    for segment in range(len(day)): #segment == (16, '0')
-        
-        if day[segment][0] == 56:
-            output = ('800-2200', day[segment][1])
-            result.append(output)
-            continue
-        
-                
-        x = day[segment][0] + prev_place #x = 17,
-        for i in range(len(hour_by_hour)):
-            
-            #For cases where timing falls in last block
-            if x >52:
-                if x == 53:
-                    time = '2100'
-                elif x == 54:
-                    time = '2115'
-                elif x == 55:
-                    time = '2130'
-                elif x == 56:
-                    time = '2145'
-                elif x == 57:
-                    time = '2200'
-
-            #For all other cases
-            elif (x >= hour_by_hour[i][0]) and (x < hour_by_hour[i+1][0]):
-
-                #settle the hour
-                time = hour_by_hour[i][1]
-
-                #settle the minute
-                if x == hour_by_hour[i][0]:
-                    time += '00'
-                elif x-1 == hour_by_hour[i][0]:
-                    time += '15'
-                elif x-2 == hour_by_hour[i][0]:
-                    time += '30'
-                else:
-                    time += '45'
-            
-        output = ((prev_time + '-' + time), day[segment][1])
-        prev_time = time
-        prev_place = x
-        
-        result.append(output)
-
-    return dict(result)
-# def show_avail_timeslots(group_schedule):
-# 	for i in group_schedule:
-# 		printcommontime.append(str(i+'\n'))
-# 		for timeslot in group_schedule[i]:
-# 			if timeslot != [0,0]:
-# 				printcommontime.append(str(timeslot[0]) + ' - ' + str(timeslot[1]) + '\n')
+def show_avail_timeslots(group_schedule):
+	for i in group_schedule:
+		printcommontime.append(str(i+'\n'))
+		for timeslot in group_schedule[i]:
+			if timeslot != [0,0]:
+				printcommontime.append(str(timeslot[0]) + ' - ' + str(timeslot[1]) + '\n')
 	
-# 	bot.send_message(activegroupid[0], 'Your free time slots are as follows:\n'+''.join(printcommontime))
-# 	filenamedict[str(activegroupid[0])] = []
-# 	activegroupid.clear()
-# 	printcommontime.clear()
-
+	bot.send_message(activegroupid[0], 'Your free time slots are as follows:\n'+''.join(printcommontime))
+	filenamedict[str(activegroupid[0])] = []
+	activegroupid.clear()
+	printcommontime.clear()
 
 
 @bot.message_handler(content_types=['document'])	
@@ -1094,12 +932,18 @@ def files(message):
 def check_dates():
 	#result = SomeModel.query.with_entities(SomeModel.col1, SomeModel.col2)
 	due_date = (datetime.today() + timedelta(days=2)).date() 
+	due_date1 = (datetime.today() + timedelta(days=3)).date()
 	rows_with_reminder_majordates = Maj_Dates.query.filter_by(deadline=due_date)
 	rows_with_reminder_meeting = Meeting.query.filter(cast(Meeting.meeting_datetime, DATE)==due_date).all() #https://gist.github.com/danielthiel/8374607
 	rows_with_reminder_task = MemberGroupTask.query.filter_by(deadline=due_date)
+
+	rows_with_reminder_majordates1 = Maj_Dates.query.filter_by(deadline=due_date1)
+	rows_with_reminder_meeting1 = Meeting.query.filter(cast(Meeting.meeting_datetime, DATE)==due_date1).all() #https://gist.github.com/danielthiel/8374607
+	rows_with_reminder_task1 = MemberGroupTask.query.filter_by(deadline=due_date1)
 	#filter(func.DATE(db.Transaction.datetime) == date.today())
 	due_date_format = datetime.strptime(str(due_date), "%Y-%m-%d").strftime('%d/%m/%Y') #convert 2020-04-02 to 02/04/2020
-	
+	due_date_format1 = datetime.strptime(str(due_date1), "%Y-%m-%d").strftime('%d/%m/%Y')
+
 	for row in rows_with_reminder_majordates:
 		group_id = row.groupid
 		desc =  row.major_desc
@@ -1120,9 +964,30 @@ def check_dates():
 		desc = row.desc
 		bot.send_message(chat_id, desc +' is due in 2 days on {} for group {}!'.format(due_date_format,str(findgroupname)))
 
+
+	for row in rows_with_reminder_majordates1:
+		group_id = row.groupid
+		desc =  row.major_desc
+		bot.send_message(group_id, desc +' is due in 3 days on {}!'.format(due_date_format))
+	
+	for row in rows_with_reminder_meeting1:
+		group_id = row.groupid
+		meetingdatetime = row.meeting_datetime
+		meetingvenue = row.venue
+		meetingagenda = row.agenda
+		formatteddatetime = datetime.strptime(str(meetingdatetime), "%Y-%m-%d %H:%M:%S").strftime('%d/%m/%Y %H:%S')
+		bot.send_message(group_id, 'A meeting on {} at {} for {} is coming up in 3 days!'.format(formatteddatetime,meetingvenue,meetingagenda))
+
+	for row in rows_with_reminder_task1:
+		group_id = row.group_id
+		findgroupname = Group.query.filter_by(groupid=group_id).first().group_name
+		chat_id =  row.chat_id
+		desc = row.desc
+		bot.send_message(chat_id, desc +' is due in 3 days on {} for group {}!'.format(due_date_format,str(findgroupname)))
+
 sched = BackgroundScheduler(daemon=True)
-sched.add_job(check_dates,trigger='cron', hour='12', minute='15')
-sched.add_job(check_dates,trigger='cron', hour='12', minute='20') #flask scheduler to check if need to remind anyone everyday at 10pm
+sched.add_job(check_dates,trigger='cron', hour='14', minute='20')
+sched.add_job(check_dates,trigger='cron', hour='14', minute='26') #flask scheduler to check if need to remind anyone everyday at 10pm
 sched.start()
 
 # @bot.message_handler(func=lambda msg: msg.text is not None and '@' in msg.text)
@@ -1162,7 +1027,7 @@ sched.start()
 @app.route("/")
 def webhook():
 	bot.remove_webhook()
-	bot.set_webhook(url='https://1b952c20.ngrok.io') #https://github.com/eternnoir/pyTelegramBotAPI/blob/master/examples/webhook_examples/webhook_flask_heroku_echo.py
+	bot.set_webhook(url='https://37e0723a.ngrok.io/') #https://github.com/eternnoir/pyTelegramBotAPI/blob/master/examples/webhook_examples/webhook_flask_heroku_echo.py
 	return "!", 200 #change url linked to local host. can be heroku also but i have issues w heroku so I used ngrok instead.
 
 if __name__ == "__main__":
